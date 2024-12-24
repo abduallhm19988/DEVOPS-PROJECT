@@ -227,7 +227,6 @@ kubectl edit ingressclass nginx  # Add `ingressclass.kubernetes.io/is-default-cl
 Follow similar steps as the Control-plane setup, omitting the `kubeadm init` step. Instead, join the cluster using the join command:
 
 ```bash
-kubeadm token create --print-join-command
 ```
 
 ---
