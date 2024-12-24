@@ -1,92 +1,188 @@
 
-# Kubernetes Cluster Setup and Juice Shop Deployment
+# Kubernetes Cluster Setup
 
-This guide provides detailed instructions for setting up a Kubernetes cluster and deploying the Juice Shop application using an NGINX ingress. The setup includes creating a master node, adding worker nodes, and exposing the Juice Shop application inside and outside the cluster.
+This guide provides step-by-step instructions for setting up a Kubernetes Cluster, including both the Control-plane and Worker-node configurations. It covers software installations, kernel and network configurations, and initializing the cluster.
 
 ---
 
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
-- [Kubernetes Cluster Setup](#kubernetes-cluster-setup)
-  - [Control-plane Setup](#control-plane-setup)
-  - [Worker-node Setup](#worker-node-setup)
-- [NGINX Ingress Controller Deployment](#nginx-ingress-controller-deployment)
-- [Juice Shop Application Deployment](#juice-shop-application-deployment)
-  - [Namespace Creation](#namespace-creation)
-  - [Juice Shop Deployment](#juice-shop-deployment)
-  - [Juice Shop Service](#juice-shop-service)
-  - [Juice Shop Ingress](#juice-shop-ingress)
-- [Apply Configurations](#apply-configurations)
-- [Access the Juice Shop Application](#access-the-juice-shop-application)
+- [Control-plane Setup](#control-plane-setup)
+  - [Update and Upgrade](#update-and-upgrade)
+  - [Time Synchronization](#time-synchronization)
+  - [Disable Swap](#disable-swap)
+  - [Kernel Module Configuration](#kernel-module-configuration)
+  - [Network Configuration](#network-configuration)
+  - [Install Software Tools](#install-software-tools)
+  - [Install Kubernetes Tools](#install-kubernetes-tools)
+  - [Install and Configure Containerd](#install-and-configure-containerd)
+  - [Initialize Control-plane](#initialize-control-plane)
+  - [Install Helm](#install-helm)
+  - [Install Ingress Controller](#install-ingress-controller)
+- [Worker-node Setup](#worker-node-setup)
+  - [Update and Upgrade](#update-and-upgrade-1)
+  - [Time Synchronization](#time-synchronization-1)
+  - [Disable Swap](#disable-swap-1)
+  - [Kernel Module Configuration](#kernel-module-configuration-1)
+  - [Network Configuration](#network-configuration-1)
+  - [Install Software Tools](#install-software-tools-1)
+  - [Install Kubernetes Tools](#install-kubernetes-tools-1)
+  - [Install and Configure Containerd](#install-and-configure-containerd-1)
+  - [Join Cluster](#join-cluster)
 - [Troubleshooting](#troubleshooting)
-- [License](#license)
 
 ---
 
 ## Prerequisites
 
-- A system capable of running Kubernetes (Ubuntu OS recommended).
-- Administrative/root access.
-- Installed tools: `kubectl`, `kubeadm`, and a configured Ingress controller (e.g., NGINX).
+- **Operating System**: Ubuntu (ensure it's updated to the latest supported version)
+- **User Privileges**: Administrative or root access
+- **Network**: Ensure nodes can communicate with each other
+- **Swap**: Must be disabled on all nodes
 
 ---
 
-## Kubernetes Cluster Setup
+## Control-plane Setup
 
-### Control-plane Setup
+### Update and Upgrade
 
-1. **Update and Upgrade:**
+```bash
+sudo apt update
+sudo apt -y full-upgrade
+sudo ufw status  # Ensure the firewall is inactive
+```
 
-    ```bash
-    sudo apt update
-    sudo apt -y full-upgrade
-    sudo ufw status  # Ensure the firewall is inactive
-    ```
+---
 
-2. **Disable Swap:**
+### Time Synchronization
 
-    ```bash
-    sudo swapoff -a
-    sudo sed -i.bak -r 's/(.+ swap .+)/#/' /etc/fstab
-    ```
+```bash
+sudo apt install systemd-timesyncd
+sudo timedatectl set-ntp true
+sudo timedatectl status  # Verify status
+```
 
-3. **Kernel Module Configuration:**
+---
+
+### Disable Swap
+
+```bash
+sudo swapoff -a
+sudo sed -i.bak -r 's/(.+ swap .+)/#/' /etc/fstab
+free -m  # Confirm swap is disabled
+cat /etc/fstab | grep swap
+```
+
+---
+
+### Kernel Module Configuration
+
+1. Create a configuration file:
 
     ```bash
     sudo vim /etc/modules-load.d/k8s.conf
     ```
 
-    Add:
+    Add the following lines:
 
     ```plaintext
     overlay
     br_netfilter
     ```
 
-    Load modules:
+2. Load the modules:
 
     ```bash
     sudo modprobe overlay
     sudo modprobe br_netfilter
+    lsmod | grep "overlay\|br_netfilter"  # Verify
     ```
 
-4. **Install Kubernetes Tools:**
+---
+
+### Network Configuration
+
+1. Create a configuration file:
 
     ```bash
-    sudo apt-get install -y apt-transport-https ca-certificates curl
+    sudo vim /etc/sysctl.d/k8s.conf
+    ```
+
+    Add the following lines:
+
+    ```plaintext
+    net.bridge.bridge-nf-call-ip6tables = 1
+    net.bridge.bridge-nf-call-iptables = 1
+    net.ipv4.ip_forward = 1
+    ```
+
+2. Apply the configuration:
+
+    ```bash
+    sudo sysctl --system
+    ```
+
+---
+
+### Install Software Tools
+
+```bash
+sudo apt-get install -y apt-transport-https ca-certificates curl   gpg gnupg2 software-properties-common
+```
+
+---
+
+### Install Kubernetes Tools
+
+1. Add Kubernetes repository and keys:
+
+    ```bash
+    sudo mkdir -m 755 /etc/apt/keyrings
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key |       sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' |       sudo tee /etc/apt/sources.list.d/kubernetes.list
     sudo apt update
     sudo apt-get install -y kubelet kubeadm kubectl
     sudo apt-mark hold kubelet kubeadm kubectl
     ```
 
-5. **Initialize the Control-plane:**
+---
+
+### Install and Configure Containerd
+
+1. Install Docker and containerd:
 
     ```bash
-    sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+    sudo apt-get install docker-ce docker-ce-cli containerd.io
     ```
 
-    Configure kubectl:
+2. Configure containerd:
+
+    ```bash
+    sudo mkdir -p /etc/containerd
+    sudo containerd config default | sudo tee /etc/containerd/config.toml
+    sudo nano /etc/containerd/config.toml  # Ensure `SystemdCgroup = true`
+    ```
+
+3. Restart and enable:
+
+    ```bash
+    sudo systemctl restart containerd
+    sudo systemctl enable containerd
+    systemctl status containerd
+    ```
+
+---
+
+### Initialize Control-plane
+
+1. Initialize the cluster:
+
+    ```bash
+    sudo kubeadm init       --pod-network-cidr=10.244.0.0/16       --cri-socket unix:///var/run/containerd/containerd.sock       --v=5
+    ```
+
+2. Set up kubeconfig:
 
     ```bash
     mkdir -p $HOME/.kube
@@ -94,194 +190,53 @@ This guide provides detailed instructions for setting up a Kubernetes cluster an
     sudo chown $(id -u):$(id -g) $HOME/.kube/config
     ```
 
-6. **Install Networking Plugin (Calico):**
+3. Add network plugin (Calico):
 
     ```bash
-    kubectl create -f https://docs.projectcalico.org/manifests/tigera-operator.yaml
-    curl -O https://docs.projectcalico.org/manifests/custom-resources.yaml
-    nano custom-resources.yaml  # Set CIDR to 10.244.0.0/16
-    kubectl apply -f custom-resources.yaml
+    kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/tigera-operator.yaml
+    curl -O https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/custom-resources.yaml
+    nano custom-resources.yaml  # Set `CIDR` to 10.244.0.0/16
+    kubectl create -f custom-resources.yaml
     ```
 
 ---
 
-### Worker-node Setup
-
-1. Follow steps 1-4 above (Control-plane setup).
-2. Join the cluster using the token from the control-plane node:
-
-    ```bash
-    kubeadm token create --print-join-command
-    ```
-
-    Run the token command on the worker node to join the cluster.
-
----
-
-## NGINX Ingress Controller Deployment
-
-1. Add the NGINX Helm repository:
-
-    ```bash
-    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-    helm repo update
-    ```
-
-2. Create a namespace for the ingress controller:
-
-    ```bash
-    kubectl create namespace ingress-nginx
-    ```
-
-3. Install the ingress controller:
-
-    ```bash
-    helm install nginx-ingress ingress-nginx/ingress-nginx       --namespace ingress-nginx       --set controller.service.type=NodePort       --set controller.service.nodePorts.http=30080       --set controller.service.nodePorts.https=30443
-    ```
-
-4. Verify the ingress controller deployment:
-
-    ```bash
-    kubectl get all -n ingress-nginx
-    ```
-
----
-
-## Juice Shop Application Deployment
-
-### Namespace Creation
-
-Create a namespace for the Juice Shop application:
+### Install Helm
 
 ```bash
-kubectl create namespace juice-shop
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install -y helm
 ```
 
 ---
 
-### Juice Shop Deployment
+### Install Ingress Controller
 
-Create a deployment file (`juice-shop-deployment.yaml`):
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: juice-shop
-  namespace: juice-shop
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: juice-shop
-  template:
-    metadata:
-      labels:
-        app: juice-shop
-    spec:
-      containers:
-      - name: juice-shop
-        image: bkimminich/juice-shop
-        ports:
-        - containerPort: 3000
+```bash
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+kubectl create ns ingress-nginx
+helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx   --set controller.service.type=NodePort   --set controller.service.nodePorts.http=30080   --set controller.service.nodePorts.https=30443
+kubectl edit ingressclass nginx  # Add `ingressclass.kubernetes.io/is-default-class: "true"`
 ```
 
 ---
 
-### Juice Shop Service
+## Worker-node Setup
 
-Create a service file (`juice-shop-service.yaml`):
+Follow similar steps as the Control-plane setup, omitting the `kubeadm init` step. Instead, join the cluster using the join command:
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: juice-shop-svc
-  namespace: juice-shop
-spec:
-  type: ClusterIP
-  selector:
-    app: juice-shop
-  ports:
-    - port: 8080
-      targetPort: 3000
+```bash
+kubeadm token create --print-join-command
 ```
-
----
-
-### Juice Shop Ingress
-
-Create an ingress file (`juice-shop-ingress.yaml`):
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: juice-shop-ingress
-  namespace: juice-shop
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  ingressClassName: nginx
-  rules:
-  - host:
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: juice-shop-svc
-            port:
-              number: 8080
-```
-
----
-
-## Apply Configurations
-
-1. Deploy Juice Shop resources:
-
-    ```bash
-    kubectl apply -f juice-shop-deployment.yaml
-    kubectl apply -f juice-shop-service.yaml
-    kubectl apply -f juice-shop-ingress.yaml
-    ```
-
-2. Verify deployment, service, and ingress:
-
-    ```bash
-    kubectl get all -n juice-shop
-    kubectl get ingress -n juice-shop
-    ```
-
----
-
-## Access the Juice Shop Application
-
-- Access the application using the external IP of the ingress controller and the ingress path (`/`).
 
 ---
 
 ## Troubleshooting
 
-1. **Pod Issues:**
-   - Check logs:
-     ```bash
-     kubectl logs -n juice-shop <pod-name>
-     ```
-
-2. **Ingress Issues:**
-   - Describe the ingress:
-     ```bash
-     kubectl describe ingress juice-shop-ingress -n juice-shop
-     ```
-
-3. **Service Issues:**
-   - Verify service configuration:
-     ```bash
-     kubectl describe service juice-shop-svc -n juice-shop
-     ```
+- Ensure swap is disabled on all nodes.
+- Verify network connectivity between nodes.
+- Check logs for `kubelet` and `containerd` for issues.
 
 ---
 
