@@ -220,13 +220,7 @@ helm install nginx-ingress ingress-nginx/ingress-nginx --namespace ingress-nginx
 kubectl edit ingressclass nginx  # Add `ingressclass.kubernetes.io/is-default-class: "true"`
 ```
 
----
 
-## Worker-node Setup
-
-Follow similar steps as the Control-plane setup, omitting the `kubeadm init` step. Instead, join the cluster using the join command:
-
-```bash
 ```
 
 ---
