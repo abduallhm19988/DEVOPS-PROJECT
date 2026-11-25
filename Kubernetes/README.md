@@ -69,7 +69,7 @@ sudo timedatectl status  # Verify status
 
 ```bash
 sudo swapoff -a
-sudo sed -i.bak -r 's/(.+ swap .+)/#/' /etc/fstab
+sudo sed -i.bak '/\sswap\s/s/^/#/' /etc/fstab
 free -m  # Confirm swap is disabled
 cat /etc/fstab | grep swap
 ```
@@ -221,6 +221,33 @@ kubectl edit ingressclass nginx  # Add `ingressclass.kubernetes.io/is-default-cl
 ```
 
 
+```
+
+---
+
+### Deploy the Juice Shop example
+
+Run these commands from the repository root after the cluster and ingress controller are ready:
+
+```bash
+kubectl apply -f Kubernetes/juice-shop-namespace.yaml
+kubectl apply -f Kubernetes/juice-shop-deployment.yaml
+kubectl apply -f Kubernetes/juice-shop-service.yaml
+kubectl apply -f Kubernetes/juice-shop-ingress.yaml
+
+kubectl -n juice-shop rollout status deployment/juice-shop
+kubectl -n juice-shop get pods,svc,ingress
+```
+
+The example Ingress uses `juice-shop.local`. Point that hostname to the ingress controller address in your lab DNS or local hosts file. This is a deliberately vulnerable training application: keep it in an isolated lab and never expose it as a production workload.
+
+### Reset the lab
+
+```bash
+kubectl delete -f Kubernetes/juice-shop-ingress.yaml --ignore-not-found
+kubectl delete -f Kubernetes/juice-shop-service.yaml --ignore-not-found
+kubectl delete -f Kubernetes/juice-shop-deployment.yaml --ignore-not-found
+kubectl delete -f Kubernetes/juice-shop-namespace.yaml --ignore-not-found
 ```
 
 ---

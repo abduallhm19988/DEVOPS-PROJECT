@@ -3,12 +3,10 @@ kind: Ingress
 metadata:
   name: juice-shop-ingress
   namespace: juice-shop
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
-  - host:
+  - host: juice-shop.local
     http:
       paths:
       - path: /

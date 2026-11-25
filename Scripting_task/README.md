@@ -17,6 +17,17 @@ The `E-MAIL-SCRIPT.sh` performs the following tasks:
 3. **Odd/Even ID check**: For valid IDs (numerical), it checks if the ID is odd or even and outputs the result.
 4. **Error handling**: The script provides warnings for invalid email addresses and entries without a valid ID.
 
+## Run
+
+From this directory:
+
+```bash
+chmod +x E-MAIL-SCRIPT.sh
+./E-MAIL-SCRIPT.sh
+```
+
+The script expects `emails.txt` in the current working directory. It is a learning exercise: the regular expression performs basic format checking only and does not prove that an email address exists or can receive mail.
+
 ## Example Output
 
 ```bash
