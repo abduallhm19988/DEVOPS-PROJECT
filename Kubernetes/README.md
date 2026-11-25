@@ -69,7 +69,7 @@ sudo timedatectl status  # Verify status
 
 ```bash
 sudo swapoff -a
-sudo sed -i.bak '/\\sswap\\s/s/^/#/' /etc/fstab
+sudo sed -i.bak '/\sswap\s/s/^/#/' /etc/fstab
 free -m  # Confirm swap is disabled
 cat /etc/fstab | grep swap
 ```
